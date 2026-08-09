@@ -47,7 +47,7 @@ Luego abre `http://localhost:8080`.
 También puede desplegarse sin cambios en Cloudflare Pages, Netlify o Vercel.
 
 ## Cambiar duración
-En `app.js`, busca `remaining:3600`. El valor está en segundos. Para 90 minutos usar `5400`.
+En `app.js`, busca `remaining:3600`. El valor está en segundos. Para 90 minutos usar `5400`..
 
 ## Privacidad de resultados
 No existe una base de datos central. El historial se almacena con `localStorage` únicamente en el dispositivo de cada participante. El botón **Exportar resultado CSV** permite que el participante descargue su resultado.
