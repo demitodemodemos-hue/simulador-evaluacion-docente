@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="theme-color" content="#0f6cbd" />
+  <title>Simulador de Evaluación Docente - Nivel Inicial</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand"><span class="brand-mark">ED</span><div><strong>Simulador de Evaluación Docente</strong><small>Educación Básica Regular - Nivel Inicial</small></div></div>
+    <div id="userChip" class="user-chip hidden"></div>
+  </header>
+
+  <main class="shell">
+    <section id="loginView" class="view card narrow">
+      <div class="eyebrow">Acceso de participantes</div>
+      <h1>Ingresa para practicar</h1>
+      <p class="muted">El nombre y correo deben coincidir con la lista de participantes autorizados.</p>
+      <form id="loginForm" class="form-grid">
+        <label>Nombre completo<input id="nameInput" autocomplete="name" required placeholder="Ej. María Pérez" /></label>
+        <label>Correo electrónico<input id="emailInput" type="email" autocomplete="email" required placeholder="nombre@correo.com" /></label>
+        <button class="btn primary" type="submit">Ingresar</button>
+      </form>
+      <p id="loginError" class="error hidden"></p>
+      <details class="demo-note"><summary>Acceso de prueba</summary><p>Usuario Demo / demo@practica.pe</p></details>
+    </section>
+
+    <section id="homeView" class="view hidden">
+      <div class="hero card">
+        <div><div class="eyebrow">Banco: A01-EBRI-11 - Convocatoria 2023</div><h1>¿Cómo deseas practicar?</h1><p class="muted">60 preguntas con alternativas A, B y C. La evaluación de práctica usa un temporizador de 60 minutos.</p></div>
+        <button id="logoutBtn" class="btn ghost">Cerrar sesión</button>
+      </div>
+      <div class="mode-grid">
+        <article class="mode-card card"><div class="mode-icon">📚</div><h2>Modo Repaso</h2><p>Responde a tu ritmo y comprueba cada respuesta de inmediato.</p><ul><li>Sin límite de tiempo</li><li>Respuesta correcta visible después de responder</li><li>Repetir solo las incorrectas</li></ul><button id="startReview" class="btn primary">Iniciar repaso</button></article>
+        <article class="mode-card card"><div class="mode-icon">📝</div><h2>Modo Evaluación</h2><p>Simulacro completo con resultado al finalizar.</p><ul><li>60 preguntas</li><li>60 minutos</li><li>Envío automático al llegar a 00:00</li></ul><label class="scale-label">Escala de referencia<select id="scaleSelect"><option value="2">Segunda - 36 aciertos</option><option value="3">Tercera - 38 aciertos</option><option value="4">Cuarta - 40 aciertos</option><option value="5">Quinta - 42 aciertos</option><option value="6">Sexta - 44 aciertos</option><option value="7">Séptima - 46 aciertos</option><option value="8">Octava - 46 aciertos</option></select></label><button id="startExam" class="btn primary">Iniciar evaluación</button></article>
+      </div>
+      <div class="card history"><div class="section-head"><h2>Mis últimos intentos</h2><button id="clearHistory" class="btn text">Borrar historial local</button></div><div id="historyList" class="muted">Aún no hay intentos guardados en este dispositivo.</div></div>
+    </section>
+
+    <section id="quizView" class="view hidden">
+      <div class="quiz-toolbar card">
+        <button id="backHome" class="btn ghost">← Salir</button>
+        <div><strong id="modeTitle"></strong><small id="progressText"></small></div>
+        <div id="timerBox" class="timer hidden">⏱ <span id="timer">60:00</span></div>
+      </div>
+      <div class="quiz-layout">
+        <aside class="palette card"><div class="section-head"><strong>Preguntas</strong><span id="answeredCount" class="pill"></span></div><div id="paletteGrid" class="palette-grid"></div></aside>
+        <section class="question-card card">
+          <div class="question-head"><span id="questionNumber" class="question-number"></span><button id="zoomBtn" class="btn text">Ampliar imagen</button></div>
+          <img id="questionImage" class="question-image" alt="Pregunta del cuadernillo" />
+          <fieldset id="answerOptions" class="answers"><legend>Selecciona una alternativa</legend>
+            <label><input type="radio" name="answer" value="A" /><span><b>A</b></span></label>
+            <label><input type="radio" name="answer" value="B" /><span><b>B</b></span></label>
+            <label><input type="radio" name="answer" value="C" /><span><b>C</b></span></label>
+          </fieldset>
+          <div id="reviewFeedback" class="feedback hidden"></div>
+          <div class="nav-row"><button id="prevBtn" class="btn ghost">← Anterior</button><button id="checkBtn" class="btn secondary hidden">Comprobar</button><button id="nextBtn" class="btn primary">Siguiente →</button></div>
+          <button id="finishBtn" class="btn danger wide hidden">Finalizar evaluación</button>
+        </section>
+      </div>
+    </section>
+
+    <section id="resultView" class="view hidden">
+      <div class="card results">
+        <div class="eyebrow">Resultado</div><h1 id="resultTitle">Evaluación finalizada</h1>
+        <div class="score-ring"><strong id="scorePct">0%</strong><span id="scoreRaw">0 / 60</span></div>
+        <div class="stat-grid"><div><strong id="correctStat">0</strong><span>Correctas</span></div><div><strong id="incorrectStat">0</strong><span>Incorrectas</span></div><div><strong id="blankStat">0</strong><span>Sin responder</span></div><div><strong id="timeStat">00:00</strong><span>Tiempo usado</span></div></div>
+        <div id="scaleResult" class="scale-result"></div>
+        <div class="result-actions"><button id="reviewResultsBtn" class="btn secondary">Revisar respuestas</button><button id="retryBtn" class="btn primary">Realizar otro intento</button><button id="exportBtn" class="btn ghost">Exportar resultado CSV</button></div>
+      </div>
+    </section>
+  </main>
+
+  <dialog id="imageDialog"><button id="closeDialog" class="dialog-close">✕</button><img id="dialogImage" alt="Pregunta ampliada" /></dialog>
+  <script src="data/questions.js"></script><script src="app.js"></script>
+</body>
+</html>
