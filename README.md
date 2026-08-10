@@ -104,3 +104,22 @@ on conflict (user_id) do nothing;
 5. Accede a `https://TU-USUARIO.github.io/simulador-evaluacion-docente/admin.html`.
 
 **Importante:** nunca pongas `service_role`, `sb_secret_...` ni una contraseña de administrador dentro de GitHub. `data/supabase-config.js` solo debe contener la Project URL y la Publishable key.
+
+## Actualización: simulacros 2025
+
+Se incorporaron dos cuadernillos oficiales adicionales:
+
+- **Evaluación 2025 - 01:** A01-EBRI-11, 60 preguntas.
+- **Evaluación 2025 - 02:** A02-EBRI-12, 60 preguntas.
+
+La pantalla principal ahora permite elegir entre **Evaluación 2023**, **Evaluación 2025 - 01** y **Evaluación 2025 - 02**, y para cada una iniciar **Repaso** o **Evaluación**. Los resultados guardados en Supabase incluyen el campo `simulacro`, por lo que el panel administrativo muestra a qué cuadernillo corresponde cada intento.
+
+### Cómo actualizar tu sitio actual
+
+1. **No reemplaces tu `data/supabase-config.js` actual**, porque allí ya tienes tu Project URL y Publishable key funcionando. En este ZIP se incluye solamente `data/supabase-config.example.js` como referencia.
+2. En Supabase > SQL Editor ejecuta **solo** `supabase-migracion-2025.sql` y confirma que aparezca `Success`.
+3. En GitHub reemplaza/sube los archivos del ZIP. Como el ZIP no contiene `data/supabase-config.js`, tu configuración actual permanecerá intacta.
+4. Espera el nuevo despliegue de GitHub Pages y recarga la página con Ctrl+F5.
+5. Verifica que aparezcan las tres tarjetas de simulacros.
+
+El archivo `supabase-setup.sql` también quedó actualizado para instalaciones nuevas desde cero.

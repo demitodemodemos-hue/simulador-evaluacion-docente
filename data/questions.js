@@ -1,4 +1,5 @@
-window.QUESTION_BANK = [
+window.QUESTION_BANKS = window.QUESTION_BANKS || {};
+window.QUESTION_BANKS['2023-A01'] = [
   {
     "id": 1,
     "image": "assets/questions/q01.webp",

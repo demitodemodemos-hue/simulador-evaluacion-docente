@@ -49,8 +49,8 @@ function renderUsers(rows){
   rows.forEach(u=>{const e=document.querySelector(`[data-edit="${u.id}"]`);if(e)e.onclick=()=>openEdit(u);const r=document.querySelector(`[data-results="${u.id}"]`);if(r)r.onclick=()=>loadParticipantResults(u.id,u.nombre);const l=document.querySelector(`[data-release="${u.id}"]`);if(l)l.onclick=()=>releaseSession(u.id,u.nombre);});
 }
 function renderResults(rows){
-  const tb=$('#resultsBody');if(!rows.length){tb.innerHTML='<tr><td class="empty-row" colspan="7">No hay resultados registrados.</td></tr>';return;}
-  tb.innerHTML=rows.map(r=>`<tr><td>${formatDate(r.fecha)}</td><td><strong>${escapeHtml(r.nombre)}</strong><div class="muted-cell">${escapeHtml(r.correo)}</div></td><td>${escapeHtml(r.modalidad)}</td><td>${r.correctas}/${r.total}</td><td>${Number(r.porcentaje).toFixed(1)}%</td><td>${formatSeconds(r.tiempo_segundos)}</td><td>${r.escala??'—'}</td></tr>`).join('');
+  const tb=$('#resultsBody');if(!rows.length){tb.innerHTML='<tr><td class="empty-row" colspan="8">No hay resultados registrados.</td></tr>';return;}
+  tb.innerHTML=rows.map(r=>`<tr><td>${formatDate(r.fecha)}</td><td><strong>${escapeHtml(r.nombre)}</strong><div class="muted-cell">${escapeHtml(r.correo)}</div></td><td>${escapeHtml(r.simulacro||'2023-A01')}</td><td>${escapeHtml(r.modalidad)}</td><td>${r.correctas}/${r.total}</td><td>${Number(r.porcentaje).toFixed(1)}%</td><td>${formatSeconds(r.tiempo_segundos)}</td><td>${r.escala??'—'}</td></tr>`).join('');
 }
 async function loadParticipantResults(id,name){try{selectedParticipant=id;const rows=await rpc('admin_listar_resultados',{p_participante_id:id,p_limite:100});renderResults(rows||[]);$('#resultsTitle').textContent=`Resultados de ${name}`;$('#resultsTitle').scrollIntoView({behavior:'smooth',block:'center'});}catch(e){setMsg(e.message,'bad');}}
 async function releaseSession(id,name){if(!confirm(`¿Liberar la sesión activa de ${name}?`))return;try{await rpc('admin_liberar_sesion',{p_participante_id:id});setMsg('Sesión liberada correctamente.');await loadDashboard();}catch(e){setMsg(e.message,'bad');}}
