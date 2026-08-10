@@ -26,15 +26,15 @@
         <button id="loginSubmit" class="btn primary" type="submit">Ingresar</button>
       </form>
       <p id="loginError" class="error hidden"></p>
-      <p class="demo-note">Acceso controlado. Solo se permite una sesión activa por participante.</p>
+      <p class="demo-note">Acceso controlado. Solo se permite una sesión activa por participante y se liberará después de 3 minutos de inactividad</p>
     </section>
 
     <section id="homeView" class="view hidden">
       <div class="hero card">
-        <div><div class="eyebrow">Simulador de Ascenso - EBR Inicial</div><h1>¿Qué evaluación deseas practicar?</h1><p class="muted">Cada simulacro contiene 60 preguntas con alternativas A, B y C. El modo Evaluación usa un temporizador de 60 minutos.</p></div>
+        <div><div class="eyebrow">Simulador de Ascenso - EBR Inicial</div><h1>¿Qué evaluación deseas practicar?</h1><p class="muted">Cada simulacro contiene 60 preguntas con alternativas A, B y C. El modo Evaluación usa un temporizador de 90 minutos.</p></div>
         <button id="logoutBtn" class="btn ghost">Cerrar sesión</button>
       </div>
-      <div class="announcement card"><strong>🎁 Gracias por adquirir tu acceso.</strong><span>Ya tienes disponibles los simulacros 2023 y 2025 (formas 01 y 02). En los próximos días seguiremos agregando simulacros anteriores para que puedas revisar, practicar y reforzar tus conocimientos.</span></div>
+      <div class="announcement card"><strong>🎁 Gracias por adquirir tu acceso.</strong><span>Ya tienes disponibles los simulacros 2023 y 2025 (formas 01 y 02).</span></div>
       <div class="bank-toolbar card"><div><h2>Simulacros disponibles</h2><p class="muted">Elige un cuadernillo y luego selecciona Repaso o Evaluación.</p></div><label class="scale-label">Escala de referencia<select id="scaleSelect"><option value="2">Segunda - 36 aciertos</option><option value="3">Tercera - 38 aciertos</option><option value="4">Cuarta - 40 aciertos</option><option value="5">Quinta - 42 aciertos</option><option value="6">Sexta - 44 aciertos</option><option value="7">Séptima - 46 aciertos</option><option value="8">Octava - 46 aciertos</option></select></label></div>
       <div id="bankGrid" class="bank-grid"></div>
       <div class="card history"><div class="section-head"><h2>Mis últimos intentos</h2><button id="clearHistory" class="btn text">Borrar historial local</button></div><div id="historyList" class="muted">Aún no hay intentos guardados en este dispositivo.</div></div>
@@ -44,7 +44,7 @@
       <div class="quiz-toolbar card">
         <button id="backHome" class="btn ghost">← Salir</button>
         <div><strong id="modeTitle"></strong><small id="progressText"></small></div>
-        <div id="timerBox" class="timer hidden">⏱ <span id="timer">60:00</span></div>
+        <div id="timerBox" class="timer hidden">⏱ <span id="timer">90:00</span></div>
       </div>
       <div class="quiz-layout">
         <aside class="palette card"><div class="section-head"><strong>Preguntas</strong><span id="answeredCount" class="pill"></span></div><div id="paletteGrid" class="palette-grid"></div></aside>
