@@ -1,53 +1,79 @@
-# Simulador de Evaluación Docente - Nivel Inicial
+# Simulador de Evaluación Docente - Nivel Inicial + Supabase
 
-Aplicación web estática para practicar el cuadernillo **A01-EBRI-11 / Inicial (Convocatoria 2023)**.
+Aplicación para GitHub Pages con control centralizado de acceso mediante Supabase.
 
-## Funciones incluidas
-- Acceso por nombre + correo, validado contra `data/usuarios.csv`.
-- Modo Repaso: sin tiempo, comprobación inmediata y respuesta correcta.
-- Modo Evaluación: 60 preguntas, temporizador de 60 minutos y envío automático al terminar.
-- Navegación por preguntas, contador de respondidas y revisión final.
-- Resultado: correctas, incorrectas, omitidas, porcentaje y tiempo.
-- Referencia de mínimos por escala de la Convocatoria 2023.
-- Historial de los últimos 10 intentos guardado solo en el navegador del participante.
-- Exportación del resultado a CSV.
-- Diseño responsive para celular, tablet y PC.
+## Qué cambió en esta versión
+- Ya no usa `data/usuarios.csv` para validar accesos.
+- Los participantes se guardan en Supabase.
+- Solo se permite **una sesión activa por participante**.
+- La sesión envía un heartbeat cada 60 segundos.
+- Si el navegador se cierra sin pulsar **Cerrar sesión**, el bloqueo caduca automáticamente después de aproximadamente 3 minutos sin actividad.
+- Al pulsar **Cerrar sesión**, la sesión se libera inmediatamente.
+- Los resultados de Modo Evaluación se guardan también en Supabase.
+- El historial local de los últimos 10 intentos continúa disponible en el dispositivo.
 
-## Usuarios autorizados
-Edita `data/usuarios.csv` manteniendo este formato:
+## Archivos nuevos/importantes
+- `supabase-setup.sql`: crea tablas y funciones seguras en Supabase.
+- `data/supabase-config.js`: aquí se colocan Project URL y Publishable key.
+- `app.js`: usa RPC de Supabase para login, heartbeat, logout y resultados.
 
-```csv
-nombre,correo
-María Pérez,maria@correo.com
-Juan Torres,juan@correo.com
+## Seguridad
+Las tablas `participantes` y `resultados` tienen RLS habilitado y no se conceden permisos directos al rol `anon`. El navegador solo puede ejecutar cuatro funciones RPC concretas. La **Publishable key** es pública por diseño y puede estar en GitHub Pages. **Nunca pongas una Secret key ni service_role en el repositorio.**
+
+Este acceso sigue siendo por nombre + correo, no por contraseña. Impide dos conexiones simultáneas con la misma cuenta, pero si alguien conoce el nombre/correo podrá intentar entrar cuando esa cuenta esté libre.
+
+## Instalación rápida
+1. Crea un proyecto Free en Supabase.
+2. Abre `SQL Editor`, pega todo `supabase-setup.sql` y pulsa **Run**.
+3. Obtén tu **Project URL** y tu **Publishable key** desde el panel **Connect** o `Settings > API Keys`.
+4. Edita `data/supabase-config.js` y reemplaza los dos textos de ejemplo.
+5. Sube/reemplaza todos estos archivos en tu repositorio GitHub.
+6. GitHub Pages volverá a desplegar automáticamente desde `main`.
+7. Prueba el usuario inicial: Rita / pintadorita3@gmail.com.
+
+## Agregar participantes
+Desde `Supabase > SQL Editor`:
+
+```sql
+insert into public.participantes(nombre,correo)
+values ('María Pérez','maria@correo.com');
 ```
 
-Se incluye un usuario de prueba:
-- Nombre: `Usuario Demo`
-- Correo: `demo@practica.pe`
+Varios de una vez:
 
-> Importante: al ser una web estática, la lista de usuarios puede ser consultada por una persona con conocimientos técnicos. Sirve como control básico de acceso para práctica, no como autenticación segura.
-
-## Probar en tu computadora
-No abras `index.html` con doble clic porque algunos navegadores bloquean la lectura del CSV. Ejecuta un servidor local, por ejemplo:
-
-```bash
-python -m http.server 8080
+```sql
+insert into public.participantes(nombre,correo) values
+('María Pérez','maria@correo.com'),
+('Juan Torres','juan@correo.com'),
+('Ana Ramos','ana@correo.com');
 ```
 
-Luego abre `http://localhost:8080`.
+## Ver quién está conectado
 
-## Publicar gratis en GitHub Pages
-1. Crea un repositorio nuevo en GitHub.
-2. Sube todo el contenido de esta carpeta a la raíz del repositorio.
-3. En **Settings > Pages**, selecciona **Deploy from a branch**.
-4. Selecciona la rama `main` y la carpeta `/ (root)`.
-5. Guarda. GitHub mostrará la dirección pública del simulador.
+```sql
+select id,nombre,correo,activo,session_last_seen,
+       (session_last_seen > now() - interval '3 minutes') as conectado
+from public.participantes
+order by id;
+```
 
-También puede desplegarse sin cambios en Cloudflare Pages, Netlify o Vercel.
+## Liberar una sesión manualmente
 
-## Cambiar duración
-En `app.js`, busca `remaining:3600`. El valor está en segundos. Para 90 minutos usar `5400`..
+```sql
+update public.participantes
+set session_token=null, session_last_seen=null
+where lower(correo)=lower('correo@ejemplo.com');
+```
 
-## Privacidad de resultados
-No existe una base de datos central. El historial se almacena con `localStorage` únicamente en el dispositivo de cada participante. El botón **Exportar resultado CSV** permite que el participante descargue su resultado.
+## Ver resultados
+
+```sql
+select r.fecha,p.nombre,p.correo,r.modalidad,r.correctas,r.total,
+       r.porcentaje,r.tiempo_segundos,r.escala
+from public.resultados r
+join public.participantes p on p.id=r.participante_id
+order by r.fecha desc;
+```
+
+## Publicar en GitHub Pages
+Mantén `index.html` en la raíz. En GitHub: `Settings > Pages > Deploy from a branch > main > /(root)`.

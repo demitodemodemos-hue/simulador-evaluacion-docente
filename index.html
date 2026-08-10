@@ -13,6 +13,8 @@
     <div id="userChip" class="user-chip hidden"></div>
   </header>
 
+  <div id="connectionWarning" class="connection-warning hidden">Hay problemas de conexión con el control de sesión. Verifica tu Internet.</div>
+
   <main class="shell">
     <section id="loginView" class="view card narrow">
       <div class="eyebrow">Acceso de participantes</div>
@@ -21,10 +23,10 @@
       <form id="loginForm" class="form-grid">
         <label>Nombre<input id="nameInput" autocomplete="name" required placeholder="Ej. María Pérez" /></label>
         <label>Correo electrónico<input id="emailInput" type="email" autocomplete="email" required placeholder="nombre@correo.com" /></label>
-        <button class="btn primary" type="submit">Ingresar</button>
+        <button id="loginSubmit" class="btn primary" type="submit">Ingresar</button>
       </form>
       <p id="loginError" class="error hidden"></p>
-      <details class="demo-note"><summary>Acceso de prueba</summary><p>Usuario Demo / demo@practica.pe</p></details>
+      <p class="demo-note">Acceso controlado. Solo se permite una sesión activa por participante.</p>
     </section>
 
     <section id="homeView" class="view hidden">
@@ -74,6 +76,6 @@
   </main>
 
   <dialog id="imageDialog"><button id="closeDialog" class="dialog-close">✕</button><img id="dialogImage" alt="Pregunta ampliada" /></dialog>
-  <script src="data/questions.js"></script><script src="app.js"></script>
+  <script src="data/questions.js"></script><script src="data/supabase-config.js"></script><script src="app.js"></script>
 </body>
 </html>

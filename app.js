@@ -1,23 +1,79 @@
-
 const $ = s => document.querySelector(s);
 const views = ['loginView','homeView','quizView','resultView'];
-const state = { user:null, mode:null, questions:window.QUESTION_BANK, order:[], index:0, answers:{}, checked:{}, startedAt:null, timerId:null, remaining:3600, reviewResults:false, scale:2 };
+const state = { user:null, sessionToken:null, mode:null, questions:window.QUESTION_BANK, order:[], index:0, answers:{}, checked:{}, startedAt:null, timerId:null, heartbeatId:null, heartbeatFailures:0, remaining:3600, reviewResults:false, scale:2 };
 const thresholds={2:36,3:38,4:40,5:42,6:44,7:46,8:46};
-let authorizedUsers=[];
+const cfg=window.SUPABASE_CONFIG||{};
 
 function showView(id){ views.forEach(v=>$('#'+v).classList.toggle('hidden',v!==id)); window.scrollTo({top:0,behavior:'instant'}); }
 function norm(s){ return (s||'').trim().toLocaleLowerCase('es').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/\s+/g,' '); }
 function escapeHtml(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]));}
-async function loadUsers(){
-  const res=await fetch('data/usuarios.csv',{cache:'no-store'}); if(!res.ok) throw new Error('No se pudo cargar la lista de usuarios.');
-  const txt=await res.text(); const lines=txt.split(/\r?\n/).filter(Boolean); authorizedUsers=lines.slice(1).map(line=>{const i=line.lastIndexOf(',');return {nombre:line.slice(0,i).trim(),correo:line.slice(i+1).trim()};});
+function isConfigured(){return /^https:\/\/.+\.supabase\.co\/?$/i.test(cfg.url||'') && /^sb_publishable_/i.test(cfg.publishableKey||'');}
+function apiBase(){return (cfg.url||'').replace(/\/$/,'')+'/rest/v1/rpc/';}
+async function rpc(name,body,{keepalive=false}={}){
+  if(!isConfigured()) throw new Error('Supabase todavía no está configurado.');
+  const res=await fetch(apiBase()+name,{method:'POST',headers:{'apikey':cfg.publishableKey,'Content-Type':'application/json'},body:JSON.stringify(body),cache:'no-store',keepalive});
+  if(!res.ok){const text=await res.text();throw new Error(text||`Error Supabase ${res.status}`);}
+  const text=await res.text();return text?JSON.parse(text):null;
 }
-function saveSession(){ sessionStorage.setItem('simUser',JSON.stringify(state.user)); }
-function loadSession(){ try{state.user=JSON.parse(sessionStorage.getItem('simUser'));}catch{} if(state.user){setUserChip();showHome();} }
+function makeToken(){return crypto.randomUUID();}
+function saveSession(){ sessionStorage.setItem('simSession',JSON.stringify({user:state.user,sessionToken:state.sessionToken})); }
+function clearLocalSession(){sessionStorage.removeItem('simSession');state.user=null;state.sessionToken=null;stopHeartbeat();setUserChip();}
+async function loadSession(){
+  let saved=null;try{saved=JSON.parse(sessionStorage.getItem('simSession'));}catch{}
+  if(!saved?.user||!saved?.sessionToken)return;
+  state.user=saved.user;state.sessionToken=saved.sessionToken;
+  try{
+    const alive=await rpc('heartbeat_participante',{p_session_token:state.sessionToken});
+    if(alive){setUserChip();startHeartbeat();showHome();}else clearLocalSession();
+  }catch(err){
+    clearLocalSession();
+    $('#loginError').textContent='No fue posible validar la sesión guardada. Verifica tu conexión e inténtalo nuevamente.';
+    $('#loginError').classList.remove('hidden');
+  }
+}
 function setUserChip(){ $('#userChip').textContent=state.user?state.user.nombre:''; $('#userChip').classList.toggle('hidden',!state.user); }
+function setLoginBusy(busy){const btn=$('#loginSubmit');btn.disabled=busy;btn.textContent=busy?'Verificando…':'Ingresar';}
 
-$('#loginForm').addEventListener('submit',e=>{e.preventDefault(); const nombre=$('#nameInput').value, correo=$('#emailInput').value; const found=authorizedUsers.find(u=>norm(u.nombre)===norm(nombre)&&norm(u.correo)===norm(correo)); if(!found){$('#loginError').textContent='Nombre o correo no autorizado. Verifica los datos e inténtalo nuevamente.';$('#loginError').classList.remove('hidden');return;} state.user=found;saveSession();setUserChip();showHome();});
-$('#logoutBtn').onclick=()=>{sessionStorage.removeItem('simUser');state.user=null;setUserChip();showView('loginView');};
+$('#loginForm').addEventListener('submit',async e=>{
+  e.preventDefault();$('#loginError').classList.add('hidden');setLoginBusy(true);
+  const nombre=$('#nameInput').value, correo=$('#emailInput').value;
+  const token=makeToken();
+  try{
+    const result=await rpc('login_participante',{p_nombre:nombre,p_correo:correo,p_session_token:token});
+    if(!result?.ok){
+      $('#loginError').textContent=result?.code==='BUSY'?'Este usuario ya tiene una sesión activa en otro dispositivo. Cierra esa sesión o espera aproximadamente 3 minutos sin actividad para volver a intentar.':'Nombre o correo no autorizado. Verifica los datos e inténtalo nuevamente.';
+      $('#loginError').classList.remove('hidden');return;
+    }
+    state.user=result.user;state.sessionToken=token;saveSession();setUserChip();startHeartbeat();showHome();
+  }catch(err){
+    console.error(err);$('#loginError').textContent='No se pudo conectar con Supabase. Revisa la configuración o tu conexión a Internet.';$('#loginError').classList.remove('hidden');
+  }finally{setLoginBusy(false);}
+});
+
+$('#logoutBtn').onclick=async()=>{await logout(true);};
+async function logout(showLogin=true){
+  const token=state.sessionToken;stopTimer();stopHeartbeat();
+  if(token){try{await rpc('logout_participante',{p_session_token:token});}catch(err){console.warn('No se pudo liberar la sesión inmediatamente:',err);}}
+  clearLocalSession();if(showLogin)showView('loginView');
+}
+
+function startHeartbeat(){
+  stopHeartbeat();state.heartbeatFailures=0;
+  state.heartbeatId=setInterval(async()=>{
+    if(!state.sessionToken)return;
+    try{
+      const alive=await rpc('heartbeat_participante',{p_session_token:state.sessionToken});
+      state.heartbeatFailures=0;
+      if(!alive){alert('Tu sesión dejó de estar activa. Es posible que se haya iniciado sesión desde otro dispositivo.');clearLocalSession();stopTimer();showView('loginView');}
+    }catch(err){
+      state.heartbeatFailures++;
+      console.warn('Heartbeat fallido',err);
+      if(state.heartbeatFailures>=3)$('#connectionWarning').classList.remove('hidden');
+    }
+  },60000);
+}
+function stopHeartbeat(){if(state.heartbeatId)clearInterval(state.heartbeatId);state.heartbeatId=null;state.heartbeatFailures=0;$('#connectionWarning')?.classList.add('hidden');}
+
 $('#startReview').onclick=()=>startQuiz('review');
 $('#startExam').onclick=()=>{state.scale=Number($('#scaleSelect').value);startQuiz('exam');};
 $('#backHome').onclick=()=>{if(confirm('¿Deseas salir? El intento actual no se guardará.')){stopTimer();showHome();}};
@@ -46,7 +102,14 @@ function updateCounts(){const n=Object.keys(state.answers).length;$('#answeredCo
 function startTimer(){stopTimer();updateTimer();state.timerId=setInterval(()=>{state.remaining--;updateTimer();if(state.remaining<=0){stopTimer();finishQuiz(true);}},1000);}
 function stopTimer(){if(state.timerId)clearInterval(state.timerId);state.timerId=null;}
 function updateTimer(){const m=Math.floor(state.remaining/60),s=state.remaining%60;$('#timer').textContent=`${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;$('#timerBox').classList.toggle('urgent',state.remaining<=300);}
-function finishQuiz(auto=false){stopTimer();const total=state.order.length;let correct=0,blank=0;state.order.forEach(id=>{const q=state.questions.find(x=>x.id===id),a=state.answers[id];if(!a)blank++;else if(a===q.correct)correct++;});const incorrect=total-correct-blank,pct=Math.round(correct/total*1000)/10;const used=state.mode==='exam'?3600-state.remaining:Math.round((Date.now()-state.startedAt)/1000);state.lastResult={date:new Date().toISOString(),mode:state.mode,correct,incorrect,blank,total,pct,used,scale:state.scale,auto};if(state.mode==='exam')saveHistory(state.lastResult);$('#resultTitle').textContent=auto?'Tiempo finalizado':'Intento finalizado';$('#scorePct').textContent=pct+'%';$('#scoreRaw').textContent=`${correct} / ${total}`;$('#correctStat').textContent=correct;$('#incorrectStat').textContent=incorrect;$('#blankStat').textContent=blank;$('#timeStat').textContent=formatSeconds(used);if(state.mode==='exam'){const need=thresholds[state.scale],ok=correct>=need;$('#scaleResult').innerHTML=`Referencia Convocatoria 2023 - ${ordinalScale(state.scale)} escala: <strong>${ok?'alcanzaste':'no alcanzaste'} el mínimo de ${need} aciertos</strong>.`;}else{$('#scaleResult').textContent='Repaso completado. Puedes revisar tus respuestas o volver a practicar.';}showView('resultView');}
+function finishQuiz(auto=false){stopTimer();const completedMode=state.mode;const total=state.order.length;let correct=0,blank=0;state.order.forEach(id=>{const q=state.questions.find(x=>x.id===id),a=state.answers[id];if(!a)blank++;else if(a===q.correct)correct++;});const incorrect=total-correct-blank,pct=Math.round(correct/total*1000)/10;const used=completedMode==='exam'?3600-state.remaining:Math.round((Date.now()-state.startedAt)/1000);state.lastResult={date:new Date().toISOString(),mode:completedMode,correct,incorrect,blank,total,pct,used,scale:state.scale,auto};if(completedMode==='exam'){saveHistory(state.lastResult);saveRemoteResult(state.lastResult);}$('#resultTitle').textContent=auto?'Tiempo finalizado':'Intento finalizado';$('#scorePct').textContent=pct+'%';$('#scoreRaw').textContent=`${correct} / ${total}`;$('#correctStat').textContent=correct;$('#incorrectStat').textContent=incorrect;$('#blankStat').textContent=blank;$('#timeStat').textContent=formatSeconds(used);if(completedMode==='exam'){const need=thresholds[state.scale],ok=correct>=need;$('#scaleResult').innerHTML=`Referencia Convocatoria 2023 - ${ordinalScale(state.scale)} escala: <strong>${ok?'alcanzaste':'no alcanzaste'} el mínimo de ${need} aciertos</strong>.`;}else{$('#scaleResult').textContent='Repaso completado. Puedes revisar tus respuestas o volver a practicar.';}showView('resultView');}
+async function saveRemoteResult(r){
+  if(!state.sessionToken)return;
+  try{
+    const ok=await rpc('guardar_resultado',{p_session_token:state.sessionToken,p_modalidad:r.mode,p_correctas:r.correct,p_incorrectas:r.incorrect,p_sin_responder:r.blank,p_total:r.total,p_porcentaje:r.pct,p_tiempo_segundos:r.used,p_escala:r.scale,p_envio_automatico:!!r.auto});
+    if(!ok)console.warn('El resultado no pudo guardarse en Supabase porque la sesión ya no estaba activa.');
+  }catch(err){console.warn('No se pudo guardar el resultado remoto:',err);}
+}
 function formatSeconds(sec){const m=Math.floor(sec/60),s=sec%60;return `${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;}
 function ordinalScale(n){return ({2:'segunda',3:'tercera',4:'cuarta',5:'quinta',6:'sexta',7:'séptima',8:'octava'})[n]||n;}
 function historyKey(){return 'examHistory:'+norm(state.user?.correo||'anon');}
@@ -55,4 +118,10 @@ function renderHistory(){const el=$('#historyList');const arr=JSON.parse(localSt
 function showHome(){showView('homeView');renderHistory();}
 function exportResult(){const r=state.lastResult;if(!r)return;const rows=[['nombre','correo','fecha','modalidad','correctas','incorrectas','sin_responder','total','porcentaje','tiempo_segundos','escala'],[state.user.nombre,state.user.correo,r.date,r.mode,r.correct,r.incorrect,r.blank,r.total,r.pct,r.used,r.scale]];const csv=rows.map(row=>row.map(v=>`"${String(v).replaceAll('"','""')}"`).join(',')).join('\n');const blob=new Blob([csv],{type:'text/csv;charset=utf-8'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=`resultado-${new Date().toISOString().slice(0,10)}.csv`;a.click();URL.revokeObjectURL(a.href);}
 
-(async()=>{try{await loadUsers();loadSession();}catch(err){$('#loginError').textContent='Error al cargar la lista de acceso. Si abriste index.html directamente, usa un servidor web local o publícalo en GitHub Pages.';$('#loginError').classList.remove('hidden');}})();
+(async()=>{
+  if(!isConfigured()){
+    $('#loginError').innerHTML='Falta configurar Supabase. Abre <strong>data/supabase-config.js</strong> y pega tu Project URL y Publishable key.';
+    $('#loginError').classList.remove('hidden');$('#loginSubmit').disabled=true;return;
+  }
+  await loadSession();
+})();
