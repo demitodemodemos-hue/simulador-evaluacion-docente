@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="theme-color" content="#0f6cbd" />
+  <title>Administración - Simulador de Evaluación Docente</title>
+  <link rel="stylesheet" href="styles.css" />
+  <link rel="stylesheet" href="admin.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand"><span class="brand-mark">ED</span><div><strong>Administración del Simulador</strong><small>Usuarios, sesiones y resultados</small></div></div>
+    <a class="admin-back" href="index.html">← Ir al simulador</a>
+  </header>
+
+  <main class="shell admin-shell">
+    <section id="adminLogin" class="card narrow admin-login-card">
+      <div class="eyebrow">Acceso administrativo</div>
+      <h1>Panel de administración</h1>
+      <p class="muted">Ingresa con el correo y contraseña del administrador creados en Supabase Auth.</p>
+      <form id="adminLoginForm" class="form-grid">
+        <label>Correo electrónico<input id="adminEmail" type="email" autocomplete="username" required /></label>
+        <label>Contraseña<input id="adminPassword" type="password" autocomplete="current-password" required /></label>
+        <button id="adminLoginBtn" class="btn primary" type="submit">Ingresar</button>
+      </form>
+      <p id="adminLoginError" class="error hidden"></p>
+    </section>
+
+    <section id="adminPanel" class="hidden">
+      <div class="admin-title card">
+        <div><div class="eyebrow">Panel administrativo</div><h1>Control del simulador</h1><p id="adminIdentity" class="muted"></p></div>
+        <div class="admin-title-actions"><button id="refreshAdmin" class="btn ghost">Actualizar</button><button id="adminLogoutBtn" class="btn danger">Cerrar sesión</button></div>
+      </div>
+
+      <div class="dashboard-grid">
+        <article class="metric card"><span>Usuarios registrados</span><strong id="mUsers">—</strong></article>
+        <article class="metric card"><span>Conectados ahora</span><strong id="mOnline">—</strong></article>
+        <article class="metric card"><span>Evaluaciones realizadas</span><strong id="mResults">—</strong></article>
+        <article class="metric card"><span>Promedio general</span><strong id="mAverage">—</strong></article>
+      </div>
+
+      <section class="card admin-section">
+        <div class="section-head admin-section-head"><div><h2>Participantes</h2><p class="muted">Registra, edita, habilita o libera sesiones.</p></div><button id="newUserBtn" class="btn primary">+ Agregar usuario</button></div>
+        <div class="admin-tools"><input id="userSearch" placeholder="Buscar por nombre o correo" /><button id="searchBtn" class="btn secondary">Buscar</button></div>
+        <div id="adminMessage" class="admin-message hidden"></div>
+        <div class="table-wrap"><table class="admin-table"><thead><tr><th>Nombre</th><th>Correo</th><th>Estado</th><th>Sesión</th><th>Intentos</th><th>Mejor</th><th>Último</th><th>Acciones</th></tr></thead><tbody id="usersBody"></tbody></table></div>
+      </section>
+
+      <section class="card admin-section">
+        <div class="section-head admin-section-head"><div><h2>Resultados recientes</h2><p class="muted">Últimos resultados guardados en Supabase.</p></div><button id="allResultsBtn" class="btn ghost">Ver todos</button></div>
+        <div id="resultsTitle" class="result-filter-title">Todos los participantes</div>
+        <div class="table-wrap"><table class="admin-table"><thead><tr><th>Fecha</th><th>Participante</th><th>Modalidad</th><th>Puntaje</th><th>%</th><th>Tiempo</th><th>Escala</th></tr></thead><tbody id="resultsBody"></tbody></table></div>
+      </section>
+    </section>
+  </main>
+
+  <dialog id="userDialog" class="admin-dialog">
+    <form id="userForm" method="dialog">
+      <div class="dialog-header"><div><div class="eyebrow">Participante</div><h2 id="userDialogTitle">Nuevo usuario</h2></div><button id="closeUserDialog" class="dialog-x" type="button">✕</button></div>
+      <input id="editUserId" type="hidden" />
+      <label>Nombre completo<input id="editName" required maxlength="150" /></label>
+      <label>Correo electrónico<input id="editEmail" type="email" required maxlength="200" /></label>
+      <label class="switch-row"><input id="editActive" type="checkbox" checked /> Usuario habilitado</label>
+      <p id="userFormError" class="error hidden"></p>
+      <div class="dialog-actions"><button type="button" id="cancelUser" class="btn ghost">Cancelar</button><button id="saveUserBtn" type="submit" class="btn primary">Guardar</button></div>
+    </form>
+  </dialog>
+
+  <script src="data/supabase-config.js"></script>
+  <script src="admin.js"></script>
+</body>
+</html>

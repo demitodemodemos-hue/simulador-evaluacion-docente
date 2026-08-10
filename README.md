@@ -77,3 +77,30 @@ order by r.fecha desc;
 
 ## Publicar en GitHub Pages
 Mantén `index.html` en la raíz. En GitHub: `Settings > Pages > Deploy from a branch > main > /(root)`.
+
+## Panel administrativo
+
+La versión incluye `admin.html`, protegido con Supabase Auth (correo + contraseña). Desde allí puedes:
+
+- registrar participantes;
+- editar nombre/correo y habilitar o deshabilitar usuarios;
+- ver quién mantiene una sesión activa y liberarla;
+- consultar cantidad de intentos, mejor/último porcentaje;
+- revisar resultados recientes.
+
+### Activación inicial del administrador
+
+1. En Supabase abre **Authentication > Users** y crea/invita el usuario administrador con correo y contraseña.
+2. En **SQL Editor**, ejecuta nuevamente `supabase-setup.sql` completo para instalar las funciones administrativas.
+3. Después ejecuta, reemplazando el correo:
+
+```sql
+insert into public.administradores(user_id)
+select id from auth.users where lower(email)=lower('TU_CORREO_ADMIN@gmail.com')
+on conflict (user_id) do nothing;
+```
+
+4. Publica `admin.html`, `admin.js` y `admin.css` junto con el resto del sitio.
+5. Accede a `https://TU-USUARIO.github.io/simulador-evaluacion-docente/admin.html`.
+
+**Importante:** nunca pongas `service_role`, `sb_secret_...` ni una contraseña de administrador dentro de GitHub. `data/supabase-config.js` solo debe contener la Project URL y la Publishable key.

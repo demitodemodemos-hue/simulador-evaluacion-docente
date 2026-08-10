@@ -217,3 +217,218 @@ set nombre = excluded.nombre,
 -- select r.fecha,p.nombre,p.correo,r.modalidad,r.correctas,r.total,r.porcentaje,r.tiempo_segundos,r.escala
 -- from public.resultados r join public.participantes p on p.id=r.participante_id
 -- order by r.fecha desc;
+
+-- =============================================================
+-- PANEL ADMINISTRATIVO
+-- Ejecuta nuevamente TODO este archivo si ya instalaste una versión anterior.
+-- Las sentencias son idempotentes y agregan/actualizan las funciones admin.
+-- =============================================================
+
+create table if not exists public.administradores (
+  user_id uuid primary key references auth.users(id) on delete cascade,
+  created_at timestamptz not null default now()
+);
+
+alter table public.administradores enable row level security;
+revoke all on table public.administradores from anon, authenticated;
+
+create or replace function public.es_administrador()
+returns boolean
+language sql
+stable
+security definer
+set search_path = public, pg_temp
+as $$
+  select exists (
+    select 1 from public.administradores a where a.user_id = auth.uid()
+  );
+$$;
+
+revoke all on function public.es_administrador() from public;
+grant execute on function public.es_administrador() to authenticated;
+
+create or replace function public.admin_resumen()
+returns jsonb
+language plpgsql
+security definer
+set search_path = public, pg_temp
+as $$
+declare
+  v_users integer;
+  v_online integer;
+  v_results integer;
+  v_average numeric;
+begin
+  if not public.es_administrador() then
+    raise exception 'ADMIN_REQUIRED';
+  end if;
+
+  select count(*) into v_users from public.participantes;
+  select count(*) into v_online from public.participantes
+    where activo = true and session_token is not null
+      and session_last_seen > now() - interval '3 minutes';
+  select count(*) into v_results from public.resultados where modalidad = 'exam';
+  select round(avg(porcentaje),1) into v_average from public.resultados where modalidad = 'exam';
+
+  return jsonb_build_object(
+    'usuarios', v_users,
+    'conectados', v_online,
+    'evaluaciones', v_results,
+    'promedio', v_average
+  );
+end;
+$$;
+
+create or replace function public.admin_listar_participantes(p_busqueda text default '')
+returns table (
+  id bigint,
+  nombre text,
+  correo text,
+  activo boolean,
+  session_last_seen timestamptz,
+  conectado boolean,
+  intentos bigint,
+  mejor_porcentaje numeric,
+  ultimo_porcentaje numeric
+)
+language plpgsql
+security definer
+set search_path = public, extensions, pg_temp
+as $$
+begin
+  if not public.es_administrador() then
+    raise exception 'ADMIN_REQUIRED';
+  end if;
+
+  return query
+  select p.id, p.nombre, p.correo, p.activo, p.session_last_seen,
+         (p.activo and p.session_token is not null and p.session_last_seen > now() - interval '3 minutes') as conectado,
+         count(r.id) filter (where r.modalidad='exam') as intentos,
+         max(r.porcentaje) filter (where r.modalidad='exam') as mejor_porcentaje,
+         (array_agg(r.porcentaje order by r.fecha desc) filter (where r.modalidad='exam'))[1] as ultimo_porcentaje
+  from public.participantes p
+  left join public.resultados r on r.participante_id = p.id
+  where coalesce(trim(p_busqueda),'') = ''
+     or extensions.unaccent(lower(p.nombre)) like '%' || extensions.unaccent(lower(trim(p_busqueda))) || '%'
+     or lower(p.correo) like '%' || lower(trim(p_busqueda)) || '%'
+  group by p.id, p.nombre, p.correo, p.activo, p.session_last_seen, p.session_token
+  order by p.nombre, p.correo;
+end;
+$$;
+
+create or replace function public.admin_crear_participante(p_nombre text, p_correo text)
+returns bigint
+language plpgsql
+security definer
+set search_path = public, pg_temp
+as $$
+declare v_id bigint;
+begin
+  if not public.es_administrador() then raise exception 'ADMIN_REQUIRED'; end if;
+  if trim(coalesce(p_nombre,'')) = '' or trim(coalesce(p_correo,'')) = '' then raise exception 'DATOS_REQUERIDOS'; end if;
+
+  insert into public.participantes(nombre, correo, activo)
+  values (trim(regexp_replace(p_nombre, '\s+', ' ', 'g')), lower(trim(p_correo)), true)
+  returning id into v_id;
+  return v_id;
+end;
+$$;
+
+create or replace function public.admin_actualizar_participante(
+  p_participante_id bigint,
+  p_nombre text,
+  p_correo text,
+  p_activo boolean
+)
+returns boolean
+language plpgsql
+security definer
+set search_path = public, pg_temp
+as $$
+begin
+  if not public.es_administrador() then raise exception 'ADMIN_REQUIRED'; end if;
+  if trim(coalesce(p_nombre,'')) = '' or trim(coalesce(p_correo,'')) = '' then raise exception 'DATOS_REQUERIDOS'; end if;
+
+  update public.participantes
+     set nombre = trim(regexp_replace(p_nombre, '\s+', ' ', 'g')),
+         correo = lower(trim(p_correo)),
+         activo = p_activo,
+         session_token = case when p_activo then session_token else null end,
+         session_last_seen = case when p_activo then session_last_seen else null end
+   where id = p_participante_id;
+  return found;
+end;
+$$;
+
+create or replace function public.admin_liberar_sesion(p_participante_id bigint)
+returns boolean
+language plpgsql
+security definer
+set search_path = public, pg_temp
+as $$
+begin
+  if not public.es_administrador() then raise exception 'ADMIN_REQUIRED'; end if;
+  update public.participantes
+     set session_token = null, session_last_seen = null
+   where id = p_participante_id;
+  return found;
+end;
+$$;
+
+create or replace function public.admin_listar_resultados(
+  p_participante_id bigint default null,
+  p_limite integer default 100
+)
+returns table (
+  id bigint,
+  fecha timestamptz,
+  participante_id bigint,
+  nombre text,
+  correo text,
+  modalidad text,
+  correctas integer,
+  incorrectas integer,
+  sin_responder integer,
+  total integer,
+  porcentaje numeric,
+  tiempo_segundos integer,
+  escala integer,
+  envio_automatico boolean
+)
+language plpgsql
+security definer
+set search_path = public, pg_temp
+as $$
+begin
+  if not public.es_administrador() then raise exception 'ADMIN_REQUIRED'; end if;
+
+  return query
+  select r.id,r.fecha,p.id,p.nombre,p.correo,r.modalidad,r.correctas,r.incorrectas,
+         r.sin_responder,r.total,r.porcentaje,r.tiempo_segundos,r.escala,r.envio_automatico
+  from public.resultados r
+  join public.participantes p on p.id = r.participante_id
+  where p_participante_id is null or p.id = p_participante_id
+  order by r.fecha desc
+  limit greatest(1,least(coalesce(p_limite,100),500));
+end;
+$$;
+
+revoke all on function public.admin_resumen() from public;
+revoke all on function public.admin_listar_participantes(text) from public;
+revoke all on function public.admin_crear_participante(text,text) from public;
+revoke all on function public.admin_actualizar_participante(bigint,text,text,boolean) from public;
+revoke all on function public.admin_liberar_sesion(bigint) from public;
+revoke all on function public.admin_listar_resultados(bigint,integer) from public;
+
+grant execute on function public.admin_resumen() to authenticated;
+grant execute on function public.admin_listar_participantes(text) to authenticated;
+grant execute on function public.admin_crear_participante(text,text) to authenticated;
+grant execute on function public.admin_actualizar_participante(bigint,text,text,boolean) to authenticated;
+grant execute on function public.admin_liberar_sesion(bigint) to authenticated;
+grant execute on function public.admin_listar_resultados(bigint,integer) to authenticated;
+
+-- PASO MANUAL DESPUÉS DE CREAR TU USUARIO EN Authentication > Users:
+-- Reemplaza el correo y ejecuta esta instrucción una sola vez en SQL Editor:
+-- insert into public.administradores(user_id)
+-- select id from auth.users where lower(email)=lower('TU_CORREO_ADMIN@gmail.com')
+-- on conflict (user_id) do nothing;
